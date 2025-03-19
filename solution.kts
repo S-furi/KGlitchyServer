@@ -32,12 +32,10 @@ object HttpConnectionUtils {
         }
     }
 
-    fun getRange(
-        start: Int? = null,
-        end: Int,
-    ): ByteArray {
+    fun getRange(start: Int? = null, end: Int) : ByteArray {
         val connection = establishGetConnection()
         connection.setRequestProperty("Range", "bytes=${if (start != null) "$start-" else "0-" }$end")
+        println("Requesting range: $start - $end")
         return try {
             connection.inputStream.buffered().use { it.readAllBytes() }
         } finally {
@@ -55,6 +53,14 @@ object HttpConnectionUtils {
             .digest(input)
 }
 
+var originalHash: String? = null
+
+if (args.isEmpty() || args[0] == "") {
+    println("No original hash has been passed as argument, no final checks will be performed.")
+} else {
+    originalHash = args[0]
+}
+
 val (length, data) = HttpConnectionUtils.getDataLength() to HttpConnectionUtils.getGlitchyData()
 
 if (length == data.size) {
@@ -68,10 +74,21 @@ val chunkSize = 64 * 1024
 val initialIdx = data.size
 var res = data.copyOf()
 
-for (i in initialIdx..data.size step chunkSize) {
-    val range = HttpConnectionUtils.getRange(i, i + chunkSize.coerceAtMost(data.size))
+generateSequence(initialIdx) { prev ->
+    val next = prev + chunkSize
+    if (next < length) next else null
+}.forEach {
+    val range = HttpConnectionUtils.getRange(it, (it + chunkSize).coerceAtMost(length))
     res += range
+    Thread.sleep(1000)
 }
 
 val resDigest = computeSHA256(res)
 println("SHA-256 of the whole data: ${resDigest.toReadableHexString()}")
+
+if (originalHash != null) {
+    require(resDigest.toReadableHexString() == originalHash) {
+        "The final hash does not match the original hash."
+    }
+    println("Hashes match! Received data is correct.")
+}
