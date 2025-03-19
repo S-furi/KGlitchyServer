@@ -43,14 +43,23 @@ object HttpConnectionUtils {
         }
     }
 
-    private fun establishGetConnection() = (URI(SERVER_URL).toURL().openConnection() as HttpURLConnection).also { it.requestMethod = "GET" }
-
-    fun ByteArray.toReadableHexString() = this.joinToString("") { "%02x".format(it) }
+    fun getMissingChunks(initialIdx: Int, finalLength: Int, chunkSize: Int = 64 * 1024): Sequence<ByteArray> =
+        generateSequence(initialIdx) { prev ->
+            val next = prev + chunkSize
+            if (next < finalLength) next else null
+        }.map {
+            Thread.sleep(500)
+            getRange(it, (it + chunkSize).coerceAtMost(finalLength))
+        }
 
     fun computeSHA256(input: ByteArray): ByteArray =
         java.security.MessageDigest
             .getInstance("SHA-256")
             .digest(input)
+
+    private fun establishGetConnection() = (URI(SERVER_URL).toURL().openConnection() as HttpURLConnection).also { it.requestMethod = "GET" }
+
+    fun ByteArray.toReadableHexString() = this.joinToString("") { "%02x".format(it) }
 }
 
 var originalHash: String? = null
@@ -61,27 +70,19 @@ if (args.isEmpty() || args[0] == "") {
     originalHash = args[0]
 }
 
-val (length, data) = HttpConnectionUtils.getDataLength() to HttpConnectionUtils.getGlitchyData()
+val (expectedLength, data) = HttpConnectionUtils.getDataLength() to HttpConnectionUtils.getGlitchyData()
 
-if (length == data.size) {
+if (expectedLength == data.size) {
     println("Data is not glitchy.")
     println("SHA-256: ${computeSHA256(data)}.")
 } else {
-    println("Received data partially (${data.size} out of $length bytes).")
+    println("Received data partially (${data.size} out of $expectedLength bytes).")
 }
 
-val chunkSize = 64 * 1024
 val initialIdx = data.size
 var res = data.copyOf()
 
-generateSequence(initialIdx) { prev ->
-    val next = prev + chunkSize
-    if (next < length) next else null
-}.forEach {
-    val range = HttpConnectionUtils.getRange(it, (it + chunkSize).coerceAtMost(length))
-    res += range
-    Thread.sleep(1000)
-}
+HttpConnectionUtils.getMissingChunks(initialIdx, expectedLength).forEach { res += it }
 
 val resDigest = computeSHA256(res)
 println("SHA-256 of the whole data: ${resDigest.toReadableHexString()}")
