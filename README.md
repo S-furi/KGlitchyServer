@@ -14,7 +14,8 @@ If possible, avoid using external libraries.
 
 ## Usage
 
-### Kotlin Script (Beta)
+### Kotlin
+#### Kotlin Script (Beta)
 
 Run:
 ```bash
@@ -28,7 +29,7 @@ And manually compare hashed value, or:
 
 To let the script check automatically original hash and computed hash.
 
-### Kotlin Project
+#### Kotlin Project
 
 Move to [`ktjvm/KGlitchyServer/`](https://github.com/S-furi/KGlitchyServer/tree/main/ktjvm/KGlitchyServer), and run
 
@@ -43,3 +44,24 @@ And manually compare hashed value, or:
 ```
 
 To let the program check automatically original hash and computed hash.
+
+### Rust
+> Note: little to no experience writing Rust code. This implementation is just an
+> effort to translate what have been accomplished with Kotlin, taken as an
+> opportunity to an hands-on learning process of the Rust programming langauge.
+
+The Rust implementation uses [sha2](https://crates.io/crates/sha2) as an external dependency
+in order to compute SHA-256 digest of received data. Thus, the project has been developed as
+a Cargo project.
+
+In order to run the program just move to [`rust/`](https://github.com/S-furi/KGlitchyServer/tree/main/rust) and simply run:
+
+```bash
+cargo run
+```
+
+or if you want to make the program peroform hashes check:
+
+```bash
+cargo run -- <sha256-digest>
+```
