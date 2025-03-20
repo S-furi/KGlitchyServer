@@ -6,8 +6,8 @@ import java.net.URI
 object BuggyServerUtils {
     private const val SERVER_URL = "http://localhost:8080"
 
-    fun getGlitchyData(log: Boolean = false): ByteArray {
-        val connection = this.establishGetConnection()
+    fun getGlitchyData(log: Boolean = false, serverUrl: String? = null): ByteArray {
+        val connection = this.establishGetConnection(serverUrl)
         return try {
             if (log) {
                 println("Response code: ${connection.responseCode}")
@@ -21,8 +21,8 @@ object BuggyServerUtils {
         }
     }
 
-    fun getDataLength(): Int {
-        val connection = this.establishGetConnection()
+    fun getDataLength(serverUrl: String? = null): Int {
+        val connection = this.establishGetConnection(serverUrl)
         return try {
             connection.headerFields?.get("Content-Length")?.first()?.toInt() ?: 0
         } finally {
@@ -30,8 +30,8 @@ object BuggyServerUtils {
         }
     }
 
-    private fun getRange(start: Int? = null, end: Int) : ByteArray {
-        val connection = establishGetConnection()
+    private fun getRange(start: Int? = null, end: Int, serverUrl: String? = null) : ByteArray {
+        val connection = establishGetConnection(serverUrl)
         connection.setRequestProperty("Range", "bytes=${if (start != null) "$start-" else "0-" }$end")
         println("Requesting range: $start - $end")
         return try {
@@ -41,13 +41,13 @@ object BuggyServerUtils {
         }
     }
 
-    fun getMissingChunks(initialIdx: Int, finalLength: Int, chunkSize: Int = 64 * 1024): Sequence<ByteArray> =
+    fun getMissingChunks(initialIdx: Int, finalLength: Int, chunkSize: Int = 64 * 1024, serverUrl: String? = null): Sequence<ByteArray> =
         generateSequence(initialIdx) { prev ->
             val next = prev + chunkSize
             if (next < finalLength) next else null
         }.map {
             Thread.sleep(500)
-            getRange(it, (it + chunkSize).coerceAtMost(finalLength))
+            getRange(it, (it + chunkSize).coerceAtMost(finalLength), serverUrl)
         }
 
     fun computeSHA256(input: ByteArray): ByteArray =
@@ -55,8 +55,8 @@ object BuggyServerUtils {
             .getInstance("SHA-256")
             .digest(input)
 
-    private fun establishGetConnection() =
-        (URI(SERVER_URL).toURL().openConnection() as HttpURLConnection).also { it.requestMethod = "GET" }
+    private fun establishGetConnection(serverUrl: String?) =
+        (URI(serverUrl ?: SERVER_URL).toURL().openConnection() as HttpURLConnection).also { it.requestMethod = "GET" }
 
     fun ByteArray.toReadableHexString() =
         this.joinToString("") { "%02x".format(it) }
