@@ -1,9 +1,9 @@
 use core::fmt;
 use std::{
-    collections::HashMap, env, io::{self, BufRead, BufReader, ErrorKind, Read, Write}, net::{TcpStream, ToSocketAddrs}, str::SplitTerminator, thread::sleep, time::Duration, usize
+    collections::HashMap, env, io::{self, BufRead, BufReader, Read, Write}, net::{TcpStream, ToSocketAddrs}, time::Duration, usize
 };
 
-use sha2::{digest::core_api::ExtendableOutputCore, Digest, Sha256};
+use sha2::{Digest, Sha256};
 
 const SERVER_URL: &str = "http://localhost:8080";
 
@@ -143,7 +143,7 @@ fn parse_response(stream: TcpStream) -> Result<Response, HttpError> {
     })
 }
 
-fn get_data(range: Option<(usize, usize)>) -> Result<Response, HttpError> {
+fn get_data(range: Option<(usize, usize)>, log: bool) -> Result<Response, HttpError> {
     let timeout = Duration::from_secs(30);
     let stream = match TcpStream::connect_timeout(
         &SERVER_URL
@@ -188,7 +188,16 @@ fn get_data(range: Option<(usize, usize)>) -> Result<Response, HttpError> {
             _ => HttpError::from(e),
         })?;
 
-    parse_response(stream)
+    let res = parse_response(stream);
+    if log {
+        if let Ok(response) = &res {
+            println!("Received data!");
+            println!("Status code: {}, {}", response.status_code, response.status_text);
+            println!("Headers:");
+            response.headers.iter().for_each(|(k, v)| println!("- {}: {}", k, v));
+        }
+    }
+    res
 }
 
 fn get_missing_chunks(initial_idx: usize, final_length: usize, chunk_size: usize) -> Vec<u8> {
@@ -202,13 +211,13 @@ fn get_missing_chunks(initial_idx: usize, final_length: usize, chunk_size: usize
 
         println!("Getting range from {} to {}", current_idx, end_idx);
 
-        let result = get_data(Some((current_idx, end_idx)));
+        let result = get_data(Some((current_idx, end_idx)), false);
 
         if result.is_err() {
             return None;
         }
 
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        std::thread::sleep(Duration::from_millis(500));
         current_idx += chunk_size;
         Some(result.unwrap().data)
     }).flatten().collect()
@@ -219,7 +228,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let expected_hash = args.get(1).map(|s| s.to_lowercase());
 
-    let data = get_data(None).expect("Cannot perform first request...");
+    let data = get_data(None, false).expect("Cannot perform first request...");
     let mut res = data.data;
     let mut missing_data = get_missing_chunks(res.len(), data.expected_length, 64 * 1024);
     res.append(&mut missing_data);
