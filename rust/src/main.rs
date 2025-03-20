@@ -1,11 +1,17 @@
 use core::fmt;
 use std::{
-    collections::HashMap, env, io::{self, BufRead, BufReader, Read, Write}, net::{TcpStream, ToSocketAddrs}, time::Duration, usize
+    collections::HashMap,
+    env,
+    io::{self, BufRead, BufReader, Read, Write},
+    net::{TcpStream, ToSocketAddrs},
+    time::Duration,
+    usize,
 };
 
 use sha2::{Digest, Sha256};
 
 const SERVER_URL: &str = "http://localhost:8080";
+const CHUNK_SIZE: u32 = 64 * 1024;
 
 #[derive(Debug)]
 pub enum HttpError {
@@ -192,9 +198,15 @@ fn get_data(range: Option<(usize, usize)>, log: bool) -> Result<Response, HttpEr
     if log {
         if let Ok(response) = &res {
             println!("Received data!");
-            println!("Status code: {}, {}", response.status_code, response.status_text);
+            println!(
+                "Status code: {}, {}",
+                response.status_code, response.status_text
+            );
             println!("Headers:");
-            response.headers.iter().for_each(|(k, v)| println!("- {}: {}", k, v));
+            response
+                .headers
+                .iter()
+                .for_each(|(k, v)| println!("- {}: {}", k, v));
         }
     }
     res
@@ -220,9 +232,10 @@ fn get_missing_chunks(initial_idx: usize, final_length: usize, chunk_size: usize
         std::thread::sleep(Duration::from_millis(500));
         current_idx += chunk_size;
         Some(result.unwrap().data)
-    }).flatten().collect()
+    })
+    .flatten()
+    .collect()
 }
-
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -230,17 +243,22 @@ fn main() {
 
     let data = get_data(None, false).expect("Cannot perform first request...");
     let mut res = data.data;
-    let mut missing_data = get_missing_chunks(res.len(), data.expected_length, 64 * 1024);
+    let mut missing_data = get_missing_chunks(res.len(), data.expected_length, CHUNK_SIZE);
     res.append(&mut missing_data);
 
     let mut hasher = Sha256::new();
     hasher.update(&res);
     let result = &hasher.finalize()[..];
-    let computed_hash = result.iter()
+    let computed_hash = result
+        .iter()
         .map(|b| format!("{:02x}", b))
         .collect::<String>();
 
-    println!("Res len: {} --> expeted: {}", &res.len(), data.expected_length);
+    println!(
+        "Res len: {} --> expeted: {}",
+        &res.len(),
+        data.expected_length
+    );
     println!("Hashed value: {}", computed_hash);
 
     if let Some(original_hash) = expected_hash {
