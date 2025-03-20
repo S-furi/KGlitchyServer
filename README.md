@@ -23,14 +23,14 @@ Run:
 And manually compare hashed value, or:
 
 ```bash
-./solution <sha256-digest>
+./solution.kts <sha256-digest>
 ```
 
 To let the script check automatically original hash and computed hash.
 
 ### Kotlin Project
 
-Move to `ktjvm/KGlitchyServer/`, and run
+Move to [`ktjvm/KGlitchyServer/`](https://github.com/S-furi/KGlitchyServer/tree/main/ktjvm/KGlitchyServer), and run
 
 ```bash
 ./gradlew run
