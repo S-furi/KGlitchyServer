@@ -5,8 +5,32 @@ import java.net.URI
 
 object BuggyServerUtils {
     private const val SERVER_URL = "http://localhost:8080"
+    private val dataLength = this.establishGetConnection(SERVER_URL).let { connection ->
+        try {
+            connection.headerFields?.get("Content-Length")?.first()?.toInt() ?: 0
+        } finally {
+            connection.disconnect()
+        }
+    }
 
-    fun getGlitchyData(log: Boolean = false, serverUrl: String? = null): ByteArray {
+    fun getData(): ByteArray {
+        val data = this.getInitialData()
+        return data + this.getRestOfData(initialIdx = data.size, endIdx = this.dataLength)
+    }
+
+    private fun getRestOfData(endIdx: Int, initialIdx: Int = 0): ByteArray {
+        val (data, expectedLength) = this.getRange(start = initialIdx, end = endIdx)
+
+        if (data.size == expectedLength) {
+            return data
+        }
+
+        println("Received data partially (${data.size} out of $expectedLength bytes) (${this.dataLength} of total).")
+
+        return data + this.getRestOfData(initialIdx = initialIdx + data.size, endIdx = this.dataLength)
+    }
+
+    private fun getInitialData(log: Boolean = false, serverUrl: String? = null): ByteArray {
         val connection = this.establishGetConnection(serverUrl)
         return try {
             if (log) {
@@ -21,34 +45,18 @@ object BuggyServerUtils {
         }
     }
 
-    fun getDataLength(serverUrl: String? = null): Int {
-        val connection = this.establishGetConnection(serverUrl)
-        return try {
-            connection.headerFields?.get("Content-Length")?.first()?.toInt() ?: 0
-        } finally {
-            connection.disconnect()
-        }
-    }
-
-    private fun getRange(start: Int? = null, end: Int, serverUrl: String? = null) : ByteArray {
+    private fun getRange(start: Int? = null, end: Int, serverUrl: String? = null) : Pair<ByteArray, Int> {
         val connection = establishGetConnection(serverUrl)
         connection.setRequestProperty("Range", "bytes=${if (start != null) "$start-" else "0-" }$end")
         println("Requesting range: $start - $end")
         return try {
-            connection.inputStream.buffered().use { it.readAllBytes() }
+            val data = connection.inputStream.buffered().use { it.readAllBytes() }
+            val length = connection.headerFields?.get("Content-Length")?.first()?.toInt() ?: 0
+            return data to length
         } finally {
             connection.disconnect()
         }
     }
-
-    fun getMissingChunks(initialIdx: Int, finalLength: Int, chunkSize: Int = 64 * 1024, serverUrl: String? = null): Sequence<ByteArray> =
-        generateSequence(initialIdx) { prev ->
-            val next = prev + chunkSize
-            if (next < finalLength) next else null
-        }.map {
-            Thread.sleep(500)
-            getRange(it, (it + chunkSize).coerceAtMost(finalLength), serverUrl)
-        }
 
     fun computeSHA256(input: ByteArray): ByteArray =
         java.security.MessageDigest
