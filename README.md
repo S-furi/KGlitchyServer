@@ -15,19 +15,6 @@ If possible, avoid using external libraries.
 ## Usage
 
 ### Kotlin
-#### Kotlin Script (Beta)
-
-Run:
-```bash
-./solution.kts
-```
-And manually compare hashed value, or:
-
-```bash
-./solution.kts <sha256-digest>
-```
-
-To let the script check automatically original hash and computed hash.
 
 #### Kotlin Project
 
