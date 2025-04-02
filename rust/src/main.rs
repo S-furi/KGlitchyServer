@@ -11,7 +11,6 @@ use std::{
 use sha2::{Digest, Sha256};
 
 const SERVER_URL: &str = "http://localhost:8080";
-const CHUNK_SIZE: u32 = 64 * 1024;
 
 #[derive(Debug)]
 pub enum HttpError {
@@ -212,53 +211,42 @@ fn get_data(range: Option<(usize, usize)>, log: bool) -> Result<Response, HttpEr
     res
 }
 
-fn get_missing_chunks(initial_idx: usize, final_length: usize, chunk_size: usize) -> Vec<u8> {
-    let mut current_idx = initial_idx;
-    std::iter::from_fn(move || {
-        if current_idx >= final_length {
-            return None;
-        }
+fn get_glitchy_data()-> Vec<u8> {
+    let res = get_data(None, false).expect("Cannot perform initial request...");
+    let mut data = res.data;
+    let mut rest = get_rest_of_data(data.len(), res.expected_length);
 
-        let end_idx = std::cmp::min(current_idx + chunk_size, final_length);
+    data.append(&mut rest);
+    data
+}
 
-        println!("Getting range from {} to {}", current_idx, end_idx);
+fn get_rest_of_data(initial_idx: usize, end_idx: usize)-> Vec<u8> {
+    let res = get_data(Some((initial_idx, end_idx)), false).expect("Cannot perform range request...");
+    let mut data = res.data;
+    let expected_length = res.expected_length;
 
-        let result = get_data(Some((current_idx, end_idx)), false);
+    if data.len() == expected_length{
+        return data;
+    }
 
-        if result.is_err() {
-            return None;
-        }
-
-        std::thread::sleep(Duration::from_millis(500));
-        current_idx += chunk_size;
-        Some(result.unwrap().data)
-    })
-    .flatten()
-    .collect()
+    data.append(&mut get_rest_of_data(initial_idx + data.len(), end_idx));
+    data
 }
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     let expected_hash = args.get(1).map(|s| s.to_lowercase());
 
-    let data = get_data(None, false).expect("Cannot perform first request...");
-    let mut res = data.data;
-    let mut missing_data = get_missing_chunks(res.len(), data.expected_length, CHUNK_SIZE);
-    res.append(&mut missing_data);
+    let data = get_glitchy_data();
 
     let mut hasher = Sha256::new();
-    hasher.update(&res);
+    hasher.update(&data);
     let result = &hasher.finalize()[..];
     let computed_hash = result
         .iter()
         .map(|b| format!("{:02x}", b))
         .collect::<String>();
 
-    println!(
-        "Res len: {} --> expeted: {}",
-        &res.len(),
-        data.expected_length
-    );
     println!("Hashed value: {}", computed_hash);
 
     if let Some(original_hash) = expected_hash {
