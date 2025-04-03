@@ -18,16 +18,15 @@ object BuggyServerUtils {
         return data + this.getRestOfData(initialIdx = data.size, endIdx = this.dataLength)
     }
 
-    private fun getRestOfData(endIdx: Int, initialIdx: Int = 0): ByteArray {
+    private tailrec fun getRestOfData(endIdx: Int, initialIdx: Int = 0, acc: ByteArray = byteArrayOf()): ByteArray {
         val (data, expectedLength) = this.getRange(start = initialIdx, end = endIdx)
+        val curr = acc + data
 
-        if (data.size == expectedLength) {
-            return data
+        return if (data.size == expectedLength) {
+            curr
+        } else {
+            this.getRestOfData(initialIdx = initialIdx + data.size, endIdx = this.dataLength, acc = curr)
         }
-
-        println("Received data partially (${data.size} out of $expectedLength bytes) (${this.dataLength} of total).")
-
-        return data + this.getRestOfData(initialIdx = initialIdx + data.size, endIdx = this.dataLength)
     }
 
     private fun getInitialData(log: Boolean = false, serverUrl: String? = null): ByteArray {
