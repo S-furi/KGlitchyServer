@@ -221,16 +221,24 @@ fn get_glitchy_data()-> Vec<u8> {
 }
 
 fn get_rest_of_data(initial_idx: usize, end_idx: usize)-> Vec<u8> {
-    let res = get_data(Some((initial_idx, end_idx)), false).expect("Cannot perform range request...");
-    let mut data = res.data;
-    let expected_length = res.expected_length;
+    let mut acc = Vec::new();
+    let mut curr_idx = initial_idx;
 
-    if data.len() == expected_length{
-        return data;
+    while curr_idx < end_idx {
+        let res = get_data(Some((curr_idx, end_idx)), false).expect("Cannot perform range request...");
+        let data = res.data;
+        let expected_length = res.expected_length;
+
+        acc.extend(data.iter());
+
+        if data.len() == expected_length {
+            break;
+        }
+
+        curr_idx += data.len();
     }
 
-    data.append(&mut get_rest_of_data(initial_idx + data.len(), end_idx));
-    data
+    acc
 }
 
 fn main() {
